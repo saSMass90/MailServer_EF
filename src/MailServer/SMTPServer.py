@@ -4,8 +4,14 @@ import sys
 import asyncore
 import smtpd
 import random
+import md5
+import imp
+import traceback
 from datetime import date
-from SMTPSettings import SMTPSettings
+
+SMTPSettings = None
+
+#from SMTPSettings import SMTPSettings
 
 class EazySMTPServer(smtpd.SMTPServer):
 
@@ -42,12 +48,34 @@ class EazySMTPServer(smtpd.SMTPServer):
 				mail.write(data)
 				mail.close()
 
+def load_module(code_path):
+    try:
+        try:
+            code_dir = os.path.dirname(code_path)
+            code_file = os.path.basename(code_path)
+
+            fin = open(code_path, 'rb')
+
+            return  imp.load_source(md5.new(code_path).hexdigest(), code_path, fin)
+        finally:
+            try: fin.close()
+            except: pass
+    except ImportError, x:
+        traceback.print_exc(file = sys.stderr)
+        raise
+    except:
+        traceback.print_exc(file = sys.stderr)
+        raise
 
 def raise_server():
+	print 'Loading SMTPSettings'
+	global SMTPSettings 
+	SMTPSettings = load_module('SMTPSettings.py')
+	
 	print "Starting SMTP server"
 	print "IP: ", SMTPSettings.smtp_ip
 	print "Port: ", SMTPSettings.smtp_port
-	
+
 	try:
 		if not os.path.exists(SMTPSettings.inbox_path):
 			print "Create path for the mail inbox: ", SMTPSettings.inbox_path

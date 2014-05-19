@@ -34,37 +34,42 @@ class Mail:
 	def __init__ (self, mail_data):
 		"""Constructor that analyzes email content and renders it in the Mail object.
 			@param mail_data: Mail to parse
-    			@type mail_data: str or file""" 
+   			@type mail_data: str or file""" 
+		
+		EOF = None
+		mail_line = None
+		mail_size = None
 
-		mail_buffer = None
 		input_type = type(mail_data)
 		if input_type is str:
-			mail_buffer = StringIO(mail_data)
+			mail_data = StringIO(mail_data)
+			EOF = lambda: True if mail_line == "" else False
+			iterate_position = lambda: 0
+
 		elif input_type is file:
-			mail_buffer = mail_data
+			import os
+			mail_size = os.path.getsize (mail_data.name) 
+			EOF = lambda: True if mail_data.tell() >= mail_size else False
+			iterate_position = lambda: mail_data.tell()
+
 		else:
 			raise "Error: Wrong input type"
-			
-		mail_lines = mail_buffer.readlines()
+		
 		last_boundary_type = "none"
-		lenght_mail_lines = len(mail_lines)
+		
 
-		iterate_line = lambda position: 1 if  position < (lenght_mail_lines - 1) else 0;
-		line_position = 0
+		while not EOF():
 
-		while line_position < lenght_mail_lines-1:
+			mail_line = mail_data.readline()
 
-			line = mail_lines[line_position]
 			if self.mime_version is None:	
-				self.mime_version = self.get_info(self.regex_mime_version, line)
+				self.mime_version = self.get_info(self.regex_mime_version, mail_line)
 
 			if last_boundary_type == "begin":
-				while line != "\n" and line_position != lenght_mail_lines - 1:
+				while mail_line != "\n" and not EOF():
 
-					content_type = self.get_info(self.regex_content_type, line)
-					print "Content Type: ", content_type
+					content_type = self.get_info(self.regex_content_type, mail_line)
 					if content_type == "multipart/alternative" or content_type == "multipart/mixed":
-						print "alternative or mixed find jump to 1"
 						break
 					
 					attachment = self.Attachment()
@@ -72,41 +77,39 @@ class Mail:
 					attachment_parsed = False
 					while not attachment_parsed:
 						if attachment.charset is None:
-							attachment.charset = self.get_info(self.regex_charset, line)
+							attachment.charset = self.get_info(self.regex_charset, mail_line)
 
 						if attachment.file_name is None:
-							attachment.file_name = self.get_info(self.regex_filename, line)	
+							attachment.file_name = self.get_info(self.regex_filename, mail_line)	
 
 						if attachment.name is None:
-							attachment.name = self.get_info(self.regex_name, line)	
+							attachment.name = self.get_info(self.regex_name, mail_line)	
 	
 						if attachment.content_transfer_encoding is None:
-							attachment.content_transfer_encoding = self.get_info(self.regex_encoding, line)		
+							attachment.content_transfer_encoding = self.get_info(self.regex_encoding, mail_line)		
 						
-						if line == "\n":
+						if mail_line == "\n":
 							last_boundary_type = "none"
 							while last_boundary_type == "none":
-								line_position += iterate_line(line_position)
-								line = mail_lines[line_position]
-								last_boundary_type = self.get_boundary_type(line)
+								mail_line = mail_data.readline()
+								last_boundary_type = self.get_boundary_type(mail_line)
 								if last_boundary_type == "none":
-									attachment.content.write(line) 
+									attachment.content.write(mail_line) 
 
 							attachment_parsed = True
 							self.attachments.append(attachment)
 
 						if not attachment_parsed:
-							line_position += iterate_line(line_position)
-							line = mail_lines[line_position]
+							mail_line = mail_data.readline()
 					
-					line_position += iterate_line(line_position)
-					line = mail_lines[line_position]
+					mail_line = mail_data.readline()
 
 
-			last_boundary_type = self.get_boundary_type(line)
-			line_position += iterate_line(line_position)
+
+			last_boundary_type = self.get_boundary_type(mail_line)
+			
 		
-		mail_buffer.close()
+		mail_data.close()
 		
 
 	@staticmethod
@@ -114,7 +117,7 @@ class Mail:
 		"""Get the info returned in a regular expresion search.
 			@param regex: Regular expresion compile
     			@type regex: re
-			@param mail_line: Line to analize to search the info
+			@param mail_line: mail_line to analize to search the info
 			@type mail_line: str""" 
 		info = regex.search(mail_line) 
 		return info.groups()[0] if info != None else None 
@@ -159,4 +162,8 @@ if __name__ == "__main__":
 
 			if not (attach.file_name is None):
 				f = open(attach.file_name, 'w')
+				f.write(attach.content.getvalue().decode('base64','strict'))
+
+			if not (attach.name is None):
+				f = open(attach.name, 'w')
 				f.write(attach.content.getvalue().decode('base64','strict'))
