@@ -44,13 +44,11 @@ class Mail:
 		if input_type is str:
 			mail_data = StringIO(mail_data)
 			EOF = lambda: True if mail_line == "" else False
-			iterate_position = lambda: 0
 
 		elif input_type is file:
 			import os
 			mail_size = os.path.getsize (mail_data.name) 
 			EOF = lambda: True if mail_data.tell() >= mail_size else False
-			iterate_position = lambda: mail_data.tell()
 
 		else:
 			raise "Error: Wrong input type"
